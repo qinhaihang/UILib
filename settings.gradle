@@ -1,0 +1,2 @@
+include ':app', ':widgetlib'
+rootProject.name='UILib'
