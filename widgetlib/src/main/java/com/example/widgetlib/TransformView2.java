@@ -1,6 +1,7 @@
 package com.example.widgetlib;
 
 import android.content.Context;
+import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -11,12 +12,16 @@ import android.graphics.PointF;
 import android.graphics.PorterDuff;
 import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
+import android.graphics.drawable.BitmapDrawable;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.TextureView;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 import android.widget.RelativeLayout;
+
+import java.io.InputStream;
 
 /**
  * @author qinhaihang
@@ -35,6 +40,7 @@ public class TransformView2 extends RelativeLayout {
 
     private Paint mPaint;
 
+    private RelativeLayout mSegmentPreviewRoot;
     private TextureView mTextureView;
     private Canvas mTextureViewCanvas;
     private Rect mSegmentRect;
@@ -46,6 +52,7 @@ public class TransformView2 extends RelativeLayout {
     private int mSegmentBitmapHeight;
     private int mInitW;
     private int mInitH;
+    private int mIconMargin = 10;
 
     private Matrix mScaleMatix = new Matrix();
     private float mScaleX;
@@ -78,7 +85,6 @@ public class TransformView2 extends RelativeLayout {
     private float mActionDownY1;
 
     private OnTounchEventCallback mOnTounchEventCallback;
-
 
     public TransformView2(Context context) {
         this(context,null,0);
@@ -114,11 +120,46 @@ public class TransformView2 extends RelativeLayout {
         mInitW = w;
         mInitH = h;
 
-        LayoutParams textureViewParams = new LayoutParams(w, h);
-        textureViewParams.addRule(CENTER_IN_PARENT);
+        //加载需要使用的icon
+        Bitmap scaleUpBitmap = getDrawableBitmap(mContext, R.drawable.scale_up);
+        Bitmap scaleDownBitmap = getDrawableBitmap(mContext, R.drawable.scale_down);
+        int segmentPreviewH = scaleDownBitmap.getHeight() + scaleUpBitmap.getHeight() + h + mIconMargin;
+
+        //添加预览界面容器，用于添加预览图像以及预览图像框、图标
+        LayoutParams segmentPreviewRootParams = new LayoutParams(w, segmentPreviewH);
+        segmentPreviewRootParams.addRule(CENTER_IN_PARENT);
+        mSegmentPreviewRoot = new RelativeLayout(mContext);
+        mSegmentPreviewRoot.setBackgroundColor(Color.parseColor("#000000"));
+        addView(mSegmentPreviewRoot,segmentPreviewRootParams);
+
+        //缩小提示图标
+        LayoutParams scaleDownLayoutParams = new LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT);
+        scaleDownLayoutParams.addRule(ALIGN_PARENT_RIGHT);
+        scaleDownLayoutParams.bottomMargin = 5;
+        ImageView scaleDown = new ImageView(mContext);
+        scaleDown.setId(R.id.id_transform_scale_down);
+        scaleDown.setImageBitmap(scaleDownBitmap);
+        mSegmentPreviewRoot.addView(scaleDown,scaleDownLayoutParams);
+
+        //放大提示图标
+        LayoutParams scaleUpLayoutParams = new LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT);
+        scaleUpLayoutParams.addRule(ALIGN_PARENT_END);
+        scaleUpLayoutParams.addRule(BELOW,R.id.id_transform_scale_down);
+        scaleUpLayoutParams.bottomMargin = 5;
+        ImageView scaleUp = new ImageView(mContext);
+        scaleUp.setId(R.id.id_transform_scale_up);
+        scaleUp.setImageBitmap(scaleUpBitmap);
+        mSegmentPreviewRoot.addView(scaleUp,scaleUpLayoutParams);
+
+        //绘制回显预览图
+        LayoutParams textureViewParams = new LayoutParams(w,h);
+        textureViewParams.addRule(BELOW,R.id.id_transform_scale_up);
         mTextureView = new TextureView(mContext);
+        mTextureView.setId(R.id.id_transform_segment_texture);
         mTextureView.setOpaque(false);
-        addView(mTextureView, getChildCount(), textureViewParams);
+        mSegmentPreviewRoot.addView(mTextureView,textureViewParams);
         mTextureView.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
             @Override
             public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
@@ -144,36 +185,6 @@ public class TransformView2 extends RelativeLayout {
                 Log.d(TAG,"onSurfaceTextureUpdated");
             }
         });
-    }
-
-    @Override
-    protected void onLayout(boolean changed, int l, int t, int r, int b) {
-        super.onLayout(changed, l, t, r, b);
-        Log.i(TAG,"onLayout");
-        layoutSegmentView();
-    }
-
-    private void layoutSegmentView() {
-        if(mSegmentBitmap != null){
-
-            mTextureView.setScaleX(mScaleFactor);
-            mTextureView.setScaleY(mScaleFactor);
-
-            float x = mLastMidPoint.x - mSegmentBitmap.getWidth() / 2;
-            float y = mLastMidPoint.y - mSegmentBitmap.getHeight() / 2;
-
-            if(x < 0){
-                x = 0;
-            }
-
-            if(y < 0){
-                y = 0;
-            }
-
-            mTextureView.setX(x);
-            mTextureView.setY(y);
-
-        }
 
     }
 
@@ -247,7 +258,7 @@ public class TransformView2 extends RelativeLayout {
 
         mRotationDegree = angleBetweenLines(mActionDownX1, mActionDownY1, mActionDownX2, mActionDownY2,
                 x1, y1, x2, y2);
-        mTextureView.setRotation(mRotationDegree);
+        mSegmentPreviewRoot.setRotation(mRotationDegree);
 
         // 计算当前两指触点所表示的向量
         /*mCurrentVector.set(event.getX(1) - event.getX(0),
@@ -257,30 +268,6 @@ public class TransformView2 extends RelativeLayout {
         mTextureView.setRotation(mRotationDegree);
         Log.d(TAG,"mRotationDegree = " + mRotationDegree);
         mLastVector.set(mCurrentVector);*/
-    }
-
-    /**
-     * 使用Math#atan2(double y, double x)方法求上次触摸事件两指所示向量与x轴的夹角，
-     * 再求出本次触摸事件两指所示向量与x轴夹角，最后求出两角之差即为图片需要转过的角度
-     *
-     * @param lastVector    上次触摸事件两指间连线所表示的向量
-     * @param currentVector 本次触摸事件两指间连线所表示的向量
-     * @return 两向量夹角，单位“度”，顺时针旋转时为正数，逆时针旋转时返回负数
-     */
-    private float getRotateDegree(PointF lastVector, PointF currentVector) {
-        //上次触摸事件向量与x轴夹角
-        float lastRad = (float)Math.atan2(lastVector.y, lastVector.x);
-        //当前触摸事件向量与x轴夹角
-        float currentRad = (float) Math.atan2(currentVector.y, currentVector.x);
-        // 两向量与x轴夹角之差即为需要旋转的角度
-        /*double rad = currentRad - lastRad;
-        //“弧度”转“度”
-        return (float) Math.toDegrees(rad);*/
-
-        float angle = (( float ) Math.toDegrees(lastRad - currentRad)) % 360;
-        if ( angle < -180.f ) angle += 360.0f;
-        if ( angle > 180.f ) angle -= 360.0f;
-        return -angle;
     }
 
     /**
@@ -312,6 +299,20 @@ public class TransformView2 extends RelativeLayout {
         mOneMoveY = event.getY();
 
         mLastMidPoint.set(mMidPoint);
+
+        float x = mLastMidPoint.x - mSegmentBitmap.getWidth() / 2;
+        float y = mLastMidPoint.y - mSegmentBitmap.getHeight() / 2;
+
+        if(x < 0){
+            x = 0;
+        }
+
+        if(y < 0){
+            y = 0;
+        }
+
+        mSegmentPreviewRoot.setX(x);
+        mSegmentPreviewRoot.setY(y);
 
     }
 
@@ -351,6 +352,9 @@ public class TransformView2 extends RelativeLayout {
                 scaleCenter.x, scaleCenter.y);
         mLastPoint1.set(mCurrentPoint1);
         mLastPoint2.set(mCurrentPoint2);
+
+        mSegmentPreviewRoot.setScaleX(mScaleFactor);
+        mSegmentPreviewRoot.setScaleY(mScaleFactor);
     }
 
     /**
@@ -406,7 +410,6 @@ public class TransformView2 extends RelativeLayout {
         mSegmentRect = rect;
         mSegmentBitmap = segmentBitmap;
         drawSegmentBitmap();
-        requestLayout();
     }
 
     public void setCanvasCallback(CanvasCallback canvasCallback) {
@@ -423,5 +426,14 @@ public class TransformView2 extends RelativeLayout {
 
     public interface OnTounchEventCallback{
         void onActionMove();
+    }
+
+    /**************         需要使用的内部工具类        *****************/
+    private Bitmap getDrawableBitmap(Context context, int drawabvleId){
+        Resources r = context.getResources();
+        InputStream inputStream = r.openRawResource(drawabvleId);
+        BitmapDrawable bmpDraw = new BitmapDrawable(r,inputStream);
+        Bitmap bmp = bmpDraw.getBitmap();
+        return bmp;
     }
 }

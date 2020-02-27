@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <item name="id_transform_segment_texture" type="id"/>
+    <item name="id_transform_scale_up" type="id"/>
+    <item name="id_transform_scale_down" type="id"/>
+</resources>

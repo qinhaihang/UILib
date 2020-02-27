@@ -11,7 +11,7 @@ import android.widget.ImageView;
 
 import com.example.widgetlib.TransformView2;
 
-public class MainActivity extends AppCompatActivity implements TransformView2.CanvasCallback, TransformView2.OnTounchEventCallback {
+public class MainActivity extends AppCompatActivity implements TransformView2.CanvasCallback {
 
     private TransformView2 mTransformView;
     private Bitmap mWaterMark;
@@ -31,7 +31,6 @@ public class MainActivity extends AppCompatActivity implements TransformView2.Ca
         mTransformView.addSegmentPreviewView(mWaterMark.getWidth(),mWaterMark.getHeight());
         //mTransformView.addSegmentPreviewView(1000,1000);
         mTransformView.setCanvasCallback(this);
-        mTransformView.setOnTounchEventCallback(this);
     }
 
     @Override
@@ -47,8 +46,4 @@ public class MainActivity extends AppCompatActivity implements TransformView2.Ca
         //runOnUiThread(() -> mTransformView.drawSegmentBitmap(mWaterMark, new Rect()));
     }
 
-    @Override
-    public void onActionMove() {
-        runOnUiThread(() -> mTransformView.drawSegmentBitmap(mWaterMark, new Rect()));
-    }
 }
