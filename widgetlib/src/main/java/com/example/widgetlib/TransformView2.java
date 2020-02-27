@@ -11,12 +11,14 @@ import android.graphics.PaintFlagsDrawFilter;
 import android.graphics.PointF;
 import android.graphics.PorterDuff;
 import android.graphics.Rect;
+import android.graphics.RectF;
 import android.graphics.SurfaceTexture;
 import android.graphics.drawable.BitmapDrawable;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.TextureView;
+import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.RelativeLayout;
@@ -42,11 +44,16 @@ public class TransformView2 extends RelativeLayout {
 
     private RelativeLayout mSegmentPreviewRoot;
     private TextureView mTextureView;
+    private ImageView mBgImageView;
+    private View mTopMaskLayerView;
+    private View mBottomMaskLayerView;
+
     private Canvas mTextureViewCanvas;
     private Rect mSegmentRect;
 
     private CanvasCallback mCanvasCallback;
 
+    private Bitmap mBgBitmap;
     private Bitmap mSegmentBitmap;
     private int mSegmentBitmapWidth;
     private int mSegmentBitmapHeight;
@@ -108,9 +115,40 @@ public class TransformView2 extends RelativeLayout {
         mPaint.setFilterBitmap(true);
         mPaint.setDither(true);
 
+        //添加绘制背景的控件
+        addBgView();
+
         //添加segment之后的图像预览控件
         //addSegmentPreviewView();
 
+        //添加预览比例蒙层
+        addMaskLayer();
+
+    }
+
+    private void addBgView() {
+        LayoutParams bgLayoutParams = new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT);
+        mBgImageView = new ImageView(mContext);
+        mBgImageView.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        addView(mBgImageView, bgLayoutParams);
+    }
+
+    private void addMaskLayer() {
+        LayoutParams topMaskLayerParams = new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT);
+        topMaskLayerParams.height = 0;
+        mTopMaskLayerView = new View(mContext);
+        mTopMaskLayerView.setBackgroundColor(Color.BLACK);
+        addView(mTopMaskLayerView, getChildCount(), topMaskLayerParams);
+
+        LayoutParams bottomMaskLayerParams = new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT);
+        bottomMaskLayerParams.height = 0;
+        bottomMaskLayerParams.addRule(ALIGN_PARENT_BOTTOM);
+        mBottomMaskLayerView = new View(mContext);
+        mBottomMaskLayerView.setBackgroundColor(Color.BLACK);
+        addView(mBottomMaskLayerView, getChildCount(), bottomMaskLayerParams);
     }
 
     public void addSegmentPreviewView(int w,int h) {
@@ -386,6 +424,8 @@ public class TransformView2 extends RelativeLayout {
         return scaleCenter;
     }
 
+    /************************** 图片绘制部分  *********************************/
+
     private void drawSegmentBitmap(){
         mTextureViewCanvas = mTextureView.lockCanvas();
         Log.i(TAG,"drawSegmentBitmap ");
@@ -412,6 +452,85 @@ public class TransformView2 extends RelativeLayout {
         drawSegmentBitmap();
     }
 
+    public void drawBgTheme(Bitmap bgBitmap) {
+        mBgBitmap = bgBitmap;
+        mBgImageView.setImageBitmap(bgBitmap);
+    }
+
+    public Bitmap getSegmentBitmap(){
+        int width = mTextureView.getWidth();
+        int height = mTextureView.getHeight();
+        Log.d(TAG,"segment textureView width " + width + ", height " + height);
+        return mTextureView.getBitmap(width,height);
+    }
+
+    public Bitmap savePic(){
+        int width = getWidth();
+        int height = getHeight();
+        Log.i(TAG, "width = " + width + " , height = " + height);
+
+        Bitmap canvasBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(canvasBitmap);
+
+        canvas.drawColor(Color.WHITE);
+
+        canvas.drawBitmap(mBgBitmap, null, new RectF(0, 0, width, height), mPaint);
+
+        Bitmap segmentBitmap = getSegmentBitmap();
+        if(segmentBitmap != null){
+
+            segmentBitmap = scaleBitmap(segmentBitmap, mScaleFactor);
+
+            segmentBitmap = rotateBitmap(segmentBitmap,mRotationDegree);
+
+            float x = mSegmentPreviewRoot.getX();
+            float y = mSegmentPreviewRoot.getY();
+            canvas.drawBitmap(segmentBitmap,x,y,mPaint);
+
+        }
+
+        //调整比例画幅
+        /*Bitmap waterMarkBitmap = BitmapUtils.getDrawableBitmap(mContext, R.drawable.watermark);
+
+        int markBitmapWidth = waterMarkBitmap.getWidth();
+        int markBitmapHeight = waterMarkBitmap.getHeight();
+        int x = width - markBitmapWidth;
+        int y = height - markBitmapHeight;
+
+        //调整比例之后需要切图
+        int topMaskLayerViewHeight = mTopMaskLayerView.getHeight();
+        int bottomMaskLayerViewHeight = mBottomMaskLayerView.getHeight();
+        //LogUtils.i(TAG,"topMaskLayerViewHeight = " + topMaskLayerViewHeight + " , bottomMaskLayerViewHeight = " + bottomMaskLayerViewHeight);
+
+        canvas.drawBitmap(waterMarkBitmap,x,y - bottomMaskLayerViewHeight,mPaint);
+
+        if(topMaskLayerViewHeight != 0 && bottomMaskLayerViewHeight != 0){
+            Rect cutRect = new Rect(0,topMaskLayerViewHeight,width,
+                    height - bottomMaskLayerViewHeight);
+            Bitmap cutBitmap = BitmapUtils.cutBitmap(canvasBitmap, cutRect);
+            return cutBitmap;
+        }*/
+
+        return canvasBitmap;
+    }
+
+    /**
+     * 调整画幅比例
+     * @param topMaskLayerH
+     * @param bottomMaskLayerH
+     */
+    public void updateMaskLayer(int topMaskLayerH, int bottomMaskLayerH) {
+
+        RelativeLayout.LayoutParams topMaskLayerParams = (LayoutParams) mTopMaskLayerView.getLayoutParams();
+        topMaskLayerParams.height = topMaskLayerH;
+        mTopMaskLayerView.setLayoutParams(topMaskLayerParams);
+
+        RelativeLayout.LayoutParams bottomMaskLayerParams = (LayoutParams) mBottomMaskLayerView.getLayoutParams();
+        bottomMaskLayerParams.height = bottomMaskLayerH;
+        mBottomMaskLayerView.setLayoutParams(bottomMaskLayerParams);
+
+    }
+
     public void setCanvasCallback(CanvasCallback canvasCallback) {
         mCanvasCallback = canvasCallback;
     }
@@ -435,5 +554,38 @@ public class TransformView2 extends RelativeLayout {
         BitmapDrawable bmpDraw = new BitmapDrawable(r,inputStream);
         Bitmap bmp = bmpDraw.getBitmap();
         return bmp;
+    }
+
+    /**
+     * 按比例缩放图片
+     *
+     * @param origin 原图
+     * @param ratio  比例
+     * @return 新的bitmap
+     */
+    private Bitmap scaleBitmap(Bitmap origin, float ratio) {
+        if (origin == null) {
+            return null;
+        }
+        int width = origin.getWidth();
+        int height = origin.getHeight();
+        Matrix matrix = new Matrix();
+        matrix.preScale(ratio, ratio);
+        Bitmap newBM = Bitmap.createBitmap(origin, 0, 0, width, height, matrix, false);
+        if (newBM.equals(origin)) {
+            return newBM;
+        }
+        origin.recycle();
+        return newBM;
+    }
+
+    private Bitmap rotateBitmap(Bitmap bitmap, float degrees) {
+        if (bitmap != null) {
+            Matrix m = new Matrix();
+            m.postRotate(degrees);
+            bitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), m, true);
+            return bitmap;
+        }
+        return null;
     }
 }
